@@ -1,7 +1,6 @@
 const fs = require("fs/promises");
 const path = require("path");
 const { nanoid } = require("nanoid");
-const { error } = require("console");
 
 const contactsPath = path.join(__dirname, "contacts.json");
 
@@ -21,12 +20,14 @@ const removeContact = async (contactId) => {
     (contact) => contact.id === contactId
   );
   if (foundContact === -1) {
-    return `There is no contact with id of ${contactId}`;
+    console.log(`There is no contact with id of ${contactId}`);
+    return false;
   } else {
     const newContactsList = parsedContacts.filter(
       (contact) => contact.id !== contactId
     );
     fs.writeFile(contactsPath, JSON.stringify(newContactsList));
+    return true;
   }
 };
 
@@ -43,7 +44,25 @@ const addContact = async (body) => {
   fs.writeFile(contactsPath, JSON.stringify(newContactsList));
 };
 
-const updateContact = async (contactId, body) => {};
+const updateContact = async (contactId, body) => {
+  const parsedContacts = await listContacts();
+  const contactToUpdate = parsedContacts.findIndex(
+    (contact) => contact.id === contactId
+  );
+  if (contactToUpdate === -1) {
+    console.log(`There is no contact with id of ${contactId}`);
+    return false;
+  } else {
+    const updatedContact = { ...parsedContacts[contactToUpdate], ...body };
+    const updatedContactList = [
+      ...parsedContacts.slice(0, contactToUpdate),
+      updatedContact,
+      ...parsedContacts.slice(contactToUpdate + 1),
+    ];
+    fs.writeFile(contactsPath, JSON.stringify(updatedContactList));
+    return true;
+  }
+};
 
 module.exports = {
   listContacts,
