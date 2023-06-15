@@ -89,7 +89,7 @@ const remove = async (req, res, next) => {
   try {
     const result = await service.removeContact(contactId);
     if (result) {
-      res.status(200).json(result);
+      res.status(200).json({ message: `Removed contact id: ${contactId}` });
     } else {
       res.status(404).json({
         message: `Not found contact id: ${contactId}`,
