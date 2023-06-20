@@ -1,4 +1,4 @@
-const service = require("../service/index");
+const service = require("../../service/index");
 const Joi = require("joi");
 
 const addContactSchema = Joi.object({
