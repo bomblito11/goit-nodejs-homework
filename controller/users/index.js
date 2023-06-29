@@ -1,9 +1,13 @@
 const User = require("../../service/schemas/users");
 const jwt = require("jsonwebtoken");
+const gravatar = require("gravatar");
+const path = require("path");
 require("dotenv").config();
 const secret = process.env.SECRET;
 const Joi = require("joi");
-const bcrypt = require("bcryptjs");
+const Jimp = require("jimp");
+const { error } = require("console");
+const randomstring = require("randomstring");
 
 const validationSchema = Joi.object({
   email: Joi.string().email().lowercase().required(),
@@ -12,7 +16,8 @@ const validationSchema = Joi.object({
 });
 
 const signup = async (req, res, next) => {
-  const { username, email, password } = req.body;
+  const { email, password } = req.body;
+  const avatarURL = gravatar.url(email, { s: "200", r: "pg", d: "retro" });
 
   try {
     const { error } = Joi.attempt(req.body, validationSchema);
@@ -34,7 +39,7 @@ const signup = async (req, res, next) => {
         });
       }
       try {
-        const newUser = new User({ username, email });
+        const newUser = new User({ email, avatarURL });
         newUser.setPassword(password);
         await newUser.save();
         res.status(201).json({
@@ -155,9 +160,56 @@ const current = async (req, res, next) => {
   }
 };
 
+const updateAvatar = async (req, res, next) => {
+  try {
+    const { path: temporaryName } = req.file;
+    const ext = path.extname(temporaryName);
+    const avatarName = randomstring.generate() + ext;
+    const storeAvatar = path.join(
+      process.cwd(),
+      "public",
+      "avatars",
+      avatarName
+    );
+
+    try {
+      Jimp.read(temporaryName).then((avatar) => {
+        return avatar.resize(250, 250).quality(60).write(storeAvatar);
+      });
+    } catch {
+      console.error(error);
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(401).json({
+        status: "Unauthorized",
+        code: 401,
+        message: "Not authorized",
+        data: "Bad request",
+      });
+    }
+
+    user.avatarURL = `/avatars/${avatarName}`;
+    await user.save();
+
+    res.status(200).json({
+      status: "success",
+      code: 200,
+      data: {
+        avatarURL: user.avatarURL,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   signup,
   login,
   logout,
   current,
+  updateAvatar,
 };

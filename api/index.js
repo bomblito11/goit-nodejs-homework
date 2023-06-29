@@ -1,6 +1,7 @@
 const express = require("express");
 const auth = require("../middleware/auth");
 
+const { upload } = require("../middleware/avatars");
 const ctrlContact = require("../controller/contacts");
 const ctrlUser = require("../controller/users");
 
@@ -25,5 +26,12 @@ router.post("/users/login", ctrlUser.login);
 router.get("/users/logout", auth, ctrlUser.logout);
 
 router.get("/users/current", auth, ctrlUser.current);
+
+router.patch(
+  "/users/avatars",
+  auth,
+  upload.single("avatar"),
+  ctrlUser.updateAvatar
+);
 
 module.exports = router;
