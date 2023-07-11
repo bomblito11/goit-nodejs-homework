@@ -8,6 +8,8 @@ const Joi = require("joi");
 const Jimp = require("jimp");
 const { error } = require("console");
 const randomstring = require("randomstring");
+const nanoid = require("nanoid");
+const { sendVerificationEmail } = require("../../mailSender/mailsender");
 
 const validationSchema = Joi.object({
   email: Joi.string().email().lowercase().required(),
@@ -15,9 +17,14 @@ const validationSchema = Joi.object({
   password: Joi.string().min(6).required(),
 });
 
+const emailValidationSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
 const signup = async (req, res, next) => {
   const { email, password } = req.body;
   const avatarURL = gravatar.url(email, { s: "200", r: "pg", d: "retro" });
+  const verificationToken = nanoid.nanoid();
 
   try {
     const { error } = Joi.attempt(req.body, validationSchema);
@@ -39,9 +46,12 @@ const signup = async (req, res, next) => {
         });
       }
       try {
-        const newUser = new User({ email, avatarURL });
+        const newUser = new User({ email, avatarURL, verificationToken });
         newUser.setPassword(password);
         await newUser.save();
+
+        await sendVerificationEmail(email, verificationToken);
+
         res.status(201).json({
           status: "success",
           code: 201,
@@ -82,6 +92,14 @@ const login = async (req, res, next) => {
           code: 401,
           message: "Incorrect email or password",
           data: "Bad request",
+        });
+      }
+
+      if (user.verify === false) {
+        return res.status(401).json({
+          status: "Unauthorized",
+          code: 401,
+          message: "User not verified",
         });
       }
 
@@ -206,10 +224,82 @@ const updateAvatar = async (req, res, next) => {
   }
 };
 
+const verifyUser = async (req, res, next) => {
+  const { verificationToken } = req.params;
+  try {
+    const user = await User.findOne({ verificationToken });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "Not Found",
+        code: 404,
+        message: "User not found",
+      });
+    }
+
+    user.verificationToken = "null";
+    user.verify = true;
+    await user.save();
+
+    res.status(200).json({
+      status: "OK",
+      code: 200,
+      message: "Verification successful",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const resendVerificationEmail = async (req, res, next) => {
+  const { email } = req.body;
+
+  try {
+    const { error } = Joi.attempt({ email }, emailValidationSchema);
+    if (error) {
+      return res.status(400).json({
+        status: "Bad request",
+        code: 400,
+        message: error.message,
+      });
+    } else {
+      const user = await User.findOne({ email });
+
+      if (!user) {
+        return res.status(404).json({
+          status: "Not Found",
+          code: 404,
+          message: "User not found",
+        });
+      }
+
+      if (user.verify === true) {
+        return res.status(400).json({
+          status: "Bad request",
+          code: 400,
+          message: "Verification has already been passed",
+        });
+      }
+
+      await sendVerificationEmail(user.email, user.verificationToken);
+
+      res.status(200).json({
+        status: "OK",
+        code: 200,
+        message: "Verification email sent",
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   signup,
   login,
   logout,
   current,
   updateAvatar,
+  verifyUser,
+  resendVerificationEmail,
 };
