@@ -17,6 +17,10 @@ const validationSchema = Joi.object({
   password: Joi.string().min(6).required(),
 });
 
+const emailValidationSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
 const signup = async (req, res, next) => {
   const { email, password } = req.body;
   const avatarURL = gravatar.url(email, { s: "200", r: "pg", d: "retro" });
@@ -247,6 +251,49 @@ const verifyUser = async (req, res, next) => {
   }
 };
 
+const resendVerificationEmail = async (req, res, next) => {
+  const { email } = req.body;
+
+  try {
+    const { error } = Joi.attempt({ email }, emailValidationSchema);
+    if (error) {
+      return res.status(400).json({
+        status: "Bad request",
+        code: 400,
+        message: error.message,
+      });
+    } else {
+      const user = await User.findOne({ email });
+
+      if (!user) {
+        return res.status(404).json({
+          status: "Not Found",
+          code: 404,
+          message: "User not found",
+        });
+      }
+
+      if (user.verify === true) {
+        return res.status(400).json({
+          status: "Bad request",
+          code: 400,
+          message: "Verification has already been passed",
+        });
+      }
+
+      await sendVerificationEmail(user.email, user.verificationToken);
+
+      res.status(200).json({
+        status: "OK",
+        code: 200,
+        message: "Verification email sent",
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   signup,
   login,
@@ -254,4 +301,5 @@ module.exports = {
   current,
   updateAvatar,
   verifyUser,
+  resendVerificationEmail,
 };
